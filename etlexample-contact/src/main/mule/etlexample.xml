@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http" xmlns:file="http://www.mulesoft.org/schema/mule/file"
+	xmlns:salesforce="http://www.mulesoft.org/schema/mule/salesforce"
+	xmlns:batch="http://www.mulesoft.org/schema/mule/batch" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:ftp="http://www.mulesoft.org/schema/mule/ftp" xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ftp http://www.mulesoft.org/schema/mule/ftp/current/mule-ftp.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd
+http://www.mulesoft.org/schema/mule/batch http://www.mulesoft.org/schema/mule/batch/current/mule-batch.xsd
+http://www.mulesoft.org/schema/mule/salesforce http://www.mulesoft.org/schema/mule/salesforce/current/mule-salesforce.xsd
+http://www.mulesoft.org/schema/mule/file http://www.mulesoft.org/schema/mule/file/current/mule-file.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<salesforce:sfdc-config name="Salesforce_Config" doc:name="Salesforce Config" doc:id="9c55741c-c556-4635-8a7a-c1a75bc86158" >
+		<salesforce:cached-basic-connection username="heena.nawani@apisero.com" password="bHANUPAWAN@221528" securityToken="ngEzqDKDDdKCpHcRXzjxtJy4e" />
+	</salesforce:sfdc-config>
+	<file:config name="File_Config" doc:name="File Config" doc:id="c8a6b120-911a-4b5e-8959-1f670ccc4033" >
+		<file:connection workingDir="C:\Users\DELL\Documents\AccountFolder\input" />
+	</file:config>
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="98234123-2971-4090-9801-7e9deecb5e10" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<flow name="HTTPFlow" doc:id="4c5ae041-ff12-4234-9966-7ea5a0d6d03e" >
+		<http:listener doc:name="Listener" doc:id="53ac0ca3-2fde-41e2-bf62-263baec9f523" config-ref="HTTP_Listener_config" path="/test"/>
+		<ee:transform doc:name="Transform Message" doc:id="58223b43-cfd0-4cab-a513-18641a6daa1a">
+			<ee:message>
+				<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+	Name: payload.Account,
+	Phone: payload.Phone,
+	AccountNumber: payload.Email
+	
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<salesforce:create-single type="Account" doc:name="Create single" doc:id="b9311b37-a4f6-4281-bad3-5e9a0c4f8da4" config-ref="Salesforce_Config" />
+		<logger level="INFO" doc:name="Logger" doc:id="a2689ccc-7b9e-4424-bb31-82b53796ac39" message="#[payload]"/>
+		<error-handler>
+			<on-error-propagate enableNotifications="true" logException="true" doc:name="On Error Propagate" doc:id="fa100775-eaec-4e88-b5d1-9132a042cf76" type="ANY">
+				<logger level="INFO" doc:name="Logger" doc:id="168ce5e7-2c7c-47b8-8709-14cc6d851c95" message="#[%dw 2.0
+output application/json
+---
+{
+		ApplicationName: p('ApplicationName'),
+		Flowname: flow.name,
+		Timestamp: now() as String {format :&quot;yyyyMMdd'T'HHmmss'Z'&quot;},
+		Instance: &quot;On-Error-Propogate&quot;,
+		ErrorCode : error.errorType.identifier,
+        ErrorDescription : error.errorMessage.payload,
+		Comments: &quot;Log error at the flow level&quot;
+}]"/>
+			</on-error-propagate>
+		</error-handler>
+	</flow>
+	<flow name="etlexampleFlow" doc:id="61494e39-2331-4fd1-8e6d-ad9be4b91fd6" >
+		<file:listener doc:name="On New or Updated File" doc:id="d10aacfc-8b9b-4b13-98cf-f3eb89fa8785" config-ref="File_Config" directory="C:\Users\DELL\Documents\AccountFolder\input" recursive="false" moveToDirectory="C:\Users\DELL\Documents\AccountFolder\output" renameTo="#['contacts_' ++ now() as String]" applyPostActionWhenFailed="false" autoDelete="true">
+			<scheduling-strategy >
+				<fixed-frequency frequency="1" timeUnit="MINUTES"/>
+			</scheduling-strategy>
+		</file:listener>
+		<ee:transform doc:name="Transform Message" doc:id="95ce1ac8-b0b2-487f-ac62-67198c9821f2" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="Logger" doc:id="5e15a6dd-6a23-4e03-b301-3e2eff742a8b" message="#[payload]"/>
+ 	 <batch:job jobName="etlexampleBatch_Job" doc:id="38482e3a-c276-4b51-8fab-8fd16a0f89ae" >
+			<batch:process-records >
+				<batch:step name="Batch_Step" doc:id="84876b3f-9b66-4d33-878a-e79ecd250a1c" >
+<logger level="INFO" doc:name="Logger" doc:id="f6ebd843-76b9-4d0c-9414-75aa390d38d4" message="Record"/>
+					<ee:transform doc:name="Transform Message" doc:id="baec26e0-42ec-4480-92cc-3a83b49fa071" >
+						<ee:message >
+							<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"Name": payload.Name,
+	"Phone": payload.Phone,
+	"Account Name": payload.AccountName,
+	"Title": payload.Title,
+	"Email" : payload.Email
+	
+}]]></ee:set-payload>
+						</ee:message>
+					</ee:transform>
+					<logger level="INFO" doc:name="Logger" doc:id="3a9c43a9-1ffa-419a-bc22-9a27e47d6646" message="#[payload]"/>
+					<salesforce:create-single type="Contact" doc:name="Create single" doc:id="a4d3976b-3923-4b4c-883c-5284629d5c9e" config-ref="Salesforce_Config" />
+					<logger level="INFO" doc:name="Logger" doc:id="d39f967f-dc15-4032-9154-9d617cb760d0" message="#[%dw 2.0 output application/json --- payload]"/>
+					<batch:aggregator doc:name="Batch Aggregator" doc:id="6e3c879a-96ed-4ea6-a5b5-6836a49c068b" size="100">
+						<logger level="INFO" doc:name="Logger" doc:id="63ebc092-f1d2-4694-ab3e-bac6b0455325" message="#[%dw 2.0 output application/json --- payload]"/>
+					</batch:aggregator>
+				
+</batch:step>
+			</batch:process-records>
+			<batch:on-complete >
+				<logger level="INFO" doc:name="Logger" doc:id="77f14a1f-3f9d-48f6-becf-f1c869d8f9d5" message="completed"/>
+			</batch:on-complete>
+		</batch:job>
+	</flow>
+</mule>
